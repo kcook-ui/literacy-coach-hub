@@ -204,6 +204,8 @@ function App(){
   const[search,setSearch]=useState("");
   const[confirm,setConfirm]=useState(null);
   const[toast,setToast]=useState(false);
+  const[,forceUpdate]=useState(0);
+  useEffect(()=>{forceUpdate(n=>n+1);},[]);
   const impRef=useRef(null);
 
   useEffect(()=>{
