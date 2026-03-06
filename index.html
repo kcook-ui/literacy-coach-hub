@@ -227,7 +227,7 @@ function App(){
   }
   function filtered(){
     return entries.filter(e=>{
-      if(e.type!==tab)return false;
+      const etype=e.type==="tasks"?"tasks":e.type==="projects"?"projects":e.type; const ttab=tab==="tasks"?"tasks":tab==="projects"?"projects":tab; if(etype!==ttab&&e.type!==tab)return false;
       if(fSch&&e.schoolId!==fSch)return false;
       if(fTop&&e.topicId!==fTop)return false;
       if(fGr&&!(e.gradeIds||[]).includes(fGr))return false;
@@ -249,12 +249,12 @@ function App(){
   function addSchool(name){if(!name.trim())return;setSchools(s=>s.concat([{id:uid(),name,color:SCOLS[s.length%SCOLS.length]}]));}
   function delSchool(id){setSchools(s=>s.filter(x=>x.id!==id));setEntries(es=>es.filter(e=>e.schoolId!==id));if(fSch===id)setFSch(null);setConfirm(null);}
 
-  const dl=entries.filter(e=>e.dueDate&&!(e.type==="task"&&e.done)).sort((a,b)=>a.dueDate.localeCompare(b.dueDate)).slice(0,7);
-  const openT=entries.filter(e=>e.type==="task"&&!e.done).length;
-  const doneT=entries.filter(e=>e.type==="task"&&e.done).length;
+  const dl=entries.filter(e=>e.dueDate&&!(e.type==="task"||e.type==="tasks"&&e.done)).sort((a,b)=>a.dueDate.localeCompare(b.dueDate)).slice(0,7);
+  const openT=entries.filter(e=>e.type==="task"||e.type==="tasks"&&!e.done).length;
+  const doneT=entries.filter(e=>e.type==="task"||e.type==="tasks"&&e.done).length;
   const totT=openT+doneT;
-  const projs=entries.filter(e=>e.type==="project").length;
-  const actP=entries.filter(e=>e.type==="project"&&e.status==="in-progress").length;
+  const projs=entries.filter(e=>e.type==="project"||e.type==="projects").length;
+  const actP=entries.filter(e=>e.type==="project"||e.type==="projects"&&e.status==="in-progress").length;
   const tCnt=Object.fromEntries(TOPICS.map(t=>[t.id,entries.filter(e=>e.topicId===t.id).length]));
 
   function D(tag,props){
@@ -321,8 +321,8 @@ function App(){
             dl.map(function(e){
               const d=days(e.dueDate),ov=d<0,sn=d>=0&&d<=3;
               return D("div",{key:e.id,className:"dlr",style:{background:ov?"#fee2e218":sn?"#fef3c718":"transparent"},
-                onClick:function(){setView("workspace");setFSch(e.schoolId);setTab(e.type==="task"?"tasks":"projects");}},
-                D("span",{style:{fontSize:16}},e.type==="task"?"✅":"📋"),
+                onClick:function(){setView("workspace");setFSch(e.schoolId);setTab(e.type==="task"||e.type==="tasks"?"tasks":"projects");}},
+                D("span",{style:{fontSize:16}},e.type==="task"||e.type==="tasks"?"✅":"📋"),
                 D("div",{style:{flex:1,minWidth:0}},
                   D("div",{style:{fontWeight:700,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},e.title),
                   D("div",{style:{fontSize:11,color:"#b0906a"}},SM[e.schoolId]&&SM[e.schoolId].name)
@@ -350,8 +350,8 @@ function App(){
         ),
         D("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}},
           ...schools.map(function(s){
-            const t=entries.filter(function(e){return e.schoolId===s.id&&e.type==="task"&&!e.done;}).length;
-            const p=entries.filter(function(e){return e.schoolId===s.id&&e.type==="project";}).length;
+            const t=entries.filter(function(e){return e.schoolId===s.id&&e.type==="task"||e.type==="tasks"&&!e.done;}).length;
+            const p=entries.filter(function(e){return e.schoolId===s.id&&e.type==="project"||e.type==="projects";}).length;
             return D("div",{key:s.id,className:"scard",style:{background:s.color+"14",border:"2px solid "+s.color+"44"},
               onClick:function(){setFSch(s.id);setView("workspace");}},
               D("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}},
