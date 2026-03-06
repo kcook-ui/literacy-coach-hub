@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Literacy Coach Hub</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #fdf8f1; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+
+/* ── Design direction: Warm classroom bulletin-board energy ──
+   Creamy parchment base, rich jewel-tone topic colors, chunky
+   rounded cards that feel like sticky notes / binder tabs.
+   Playfair Display for headings, Lato for body.
+   Each school gets its own warm accent stripe.
+*/
+
+const GOOGLE_FONTS = `
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&family=Lato:wght@400;700&display=swap');
+`;
+
+// ── Data ─────────────────────────────────────────────────────────────────────
+
+const TOPICS = [
+  { id: "phonemic",    label: "Phonemic Awareness", emoji: "👂", color: "#e07b4f" },
+  { id: "phonics",     label: "Phonics",            emoji: "🔤", color: "#5b8dd9" },
+  { id: "fluency",     label: "Fluency",             emoji: "⚡", color: "#c47db5" },
+  { id: "vocabulary",  label: "Vocabulary",          emoji: "📖", color: "#3aab8c" },
+  { id: "comprehension",label:"Comprehension",       emoji: "💡", color: "#e8a838" },
+  { id: "writing",     label: "Writing",             emoji: "✍️", color: "#e05a5a" },
+  { id: "assessment",  label: "Assessment",          emoji: "📊", color: "#7aab7a" },
+  { id: "family",      label: "Family Engagement",   emoji: "🏠", color: "#9b7fd4" },
+  { id: "other",       label: "Other",               emoji: "📌", color: "#b0886a" },
+];
+
+const SCHOOL_COLORS = ["#e07b4f","#5b8dd9","#3aab8c","#c47db5","#e8a838","#e05a5a"];
+
+const INITIAL_SCHOOLS = [
+  { id: "s1", name: "Schavey Road Elementary", color: SCHOOL_COLORS[0] },
+  { id: "s2", name: "Scott School",            color: SCHOOL_COLORS[1] },
+  { id: "s3", name: "Herbison Woods",          color: SCHOOL_COLORS[2] },
+  { id: "s4", name: "General / District",      color: SCHOOL_COLORS[3] },
+];
+
+const PRIORITIES = [
+  { id: "high",   label: "High",   bg: "#fee2e2", fg: "#b91c1c" },
+  { id: "medium", label: "Med",    bg: "#fef3c7", fg: "#92400e" },
+  { id: "low",    label: "Low",    bg: "#dcfce7", fg: "#166534" },
+];
+
+const PROJ_STATUSES = [
+  { id: "planning",     label: "Planning",     bg: "#e0f0ff", fg: "#1d5fa3" },
+  { id: "in-progress",  label: "In Progress",  bg: "#fef3c7", fg: "#92400e" },
+  { id: "on-hold",      label: "On Hold",      bg: "#f3f3f3", fg: "#666"    },
+  { id: "complete",     label: "Complete",     bg: "#dcfce7", fg: "#166534" },
+];
+
+const GRADES = [
+  { id: "prek",  label: "Pre-K",  short: "PK",  color: "#e07b4f" },
+  { id: "k",     label: "Kinder", short: "K",   color: "#e8a838" },
+  { id: "g1",    label: "1st",    short: "1",   color: "#6abf69" },
+  { id: "g2",    label: "2nd",    short: "2",   color: "#3aab8c" },
+  { id: "g3",    label: "3rd",    short: "3",   color: "#5b8dd9" },
+  { id: "g4",    label: "4th",    short: "4",   color: "#9b7fd4" },
+  { id: "g5",    label: "5th",    short: "5",   color: "#c47db5" },
+  { id: "g6",    label: "6th",    short: "6",   color: "#bf5e2e" },
+  { id: "g7",    label: "7th",    short: "7",   color: "#7aab7a" },
+  { id: "g8",    label: "8th",    short: "8",   color: "#b0886a" },
+  { id: "multi", label: "Multi-Grade", short: "Multi", color: "#888" },
+];
+
+function uid() { return Math.random().toString(36).slice(2, 9); }
+function today() { return new Date().toISOString().slice(0,10); }
+function fmtDate(d) {
+  if (!d) return "";
+  const dt = new Date(d + "T12:00:00");
+  return dt.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
+}
+function daysUntil(d) {
+  if (!d) return null;
+  return Math.ceil((new Date(d+"T12:00:00") - new Date()) / 86400000);
+}
+
+function detectLinkType(url) {
+  if (!url) return { icon:"🔗", label:"Link", color:"#5b8dd9" };
+  const u = url.toLowerCase();
+  if (u.includes("docs.google.com/document"))     return { icon:"📄", label:"Google Doc",    color:"#4285f4" };
+  if (u.includes("docs.google.com/spreadsheet"))  return { icon:"📊", label:"Google Sheet",  color:"#0f9d58" };
+  if (u.includes("docs.google.com/presentation")) return { icon:"📽️", label:"Google Slides", color:"#f4b400" };
+  if (u.includes("drive.google.com"))              return { icon:"📁", label:"Google Drive",  color:"#4285f4" };
+  if (u.includes("docs.google.com/forms"))         return { icon:"📋", label:"Google Form",   color:"#7248b9" };
+  if (u.includes("youtube.com") || u.includes("youtu.be")) return { icon:"▶️", label:"Video", color:"#ff0000" };
+  if (u.includes("canva.com"))                     return { icon:"🎨", label:"Canva",         color:"#00c4cc" };
+  if (u.includes("padlet.com"))                    return { icon:"📌", label:"Padlet",        color:"#ff6b6b" };
+  if (u.includes("seesaw"))                        return { icon:"🟢", label:"Seesaw",        color:"#00a651" };
+  return { icon:"🔗", label:"Link", color:"#5b8dd9" };
+}
+
+// ── Seed data ────────────────────────────────────────────────────────────────
+
+function seed(schools) {
+  const s = schools.map(s=>s.id);
+  // s[0] = Schavey Road, s[1] = Scott, s[2] = Herbison Woods, s[3] = General/District
+  return [
+
+    // ── GENERAL / DISTRICT PROJECTS ──────────────────────────────────────────
+    {
+      id:uid(), type:"project", schoolId:s[3], topicId:"other", gradeIds:["multi"],
+      title:"General Resources & GPS Plan 2025-26", status:"in-progress", dueDate:"", 
+      notes:"District-wide literacy planning, roles, and general reference materials.\n\nKelli's Weekly Schedule:\n• Mon: SRE (makeup → Thurs)\n• Tue: Scott (makeup → Thurs)\n• Wed: HW (Alex in-person day)\n• Thu: Flex / makeup\n• Fri: Flex / CCRESA meetings\n\nPost schedule anywhere you sit: library, office, classroom.",
+      links:[
+        { id:uid(), url:"https://www.canva.com/design/DAGmOr8txxk/9ztTG8TdTRu80sl1tLHprQ/edit", label:"GPS Plan 2025-26" },
+        { id:uid(), url:"https://docs.google.com/document/d/1gr35unm6SmPzZ5P7oMJMQcLKvEi791cNADg3kPQjYJo/edit", label:"Literacy Roles" },
+        { id:uid(), url:"https://drive.google.com/file/d/1BRr-Q8E6sqbM-TsGiDCK6kle_zn0vUdx/view", label:"Reading Teacher Assessment Article" },
+        { id:uid(), url:"https://docs.google.com/presentation/d/13bP1TA-MXpeGC7Bwoh4HouBYNxLDwXn4/present", label:"MDE Dyslexia Presentation" },
+        { id:uid(), url:"https://docs.google.com/spreadsheets/d/1tT9m9kUQQO3yC9-Lxz374NwPi056sCuaeDgcBRZd6j8/edit", label:"Writing Lesson Times" },
+        { id:uid(), url:"https://dibels.uoregon.edu/sites/default/files/2024-01/dibels8_admin_scoring_guide.pdf", label:"DIBELS 8 Scoring Guide" },
+        { id:uid(), url:"https://drive.google.com/drive/folders/1TgS1KddJBRVRlibFrEjZx3I5fmMLRsrX", label:"TLT Resources Folder" },
+        { id:uid(), url:"https://www.edutopia.org/article/opening-door-professional-learning/", label:"Pineapple Chart (Edutopia)" },
+        { id:uid(), url:"https://www.edutopia.org/article/using-instructional-rounds-guide-teachers/", label:"Instructional Rounds (Edutopia)" },
+        { id:uid(), url:"https://www.edutopia.org/article/peer-peer-observations-support-novice-teachers", label:"Peer-to-Peer Observations (Edutopia)" },
+      ]
+    },
+    {
+      id:uid(), type:"project", schoolId:s[3], topicId:"writing", gradeIds:["multi"],
+      title:"Writing Resources – District", status:"in-progress", dueDate:"",
+      notes:"District writing scope & sequences, rubrics, and curriculum resources.\n\nCommittee Leads:\n4th – Kelsey Brothers (ELA)\n2nd – Kate Krumm (Writing)\n2nd – Megan Kass (Writing)\n\nChapter Book Read Alouds:\n2nd Grade: The Wild Robot\n3rd Grade: The One and Only Ivan",
+      links:[
+        { id:uid(), url:"https://drive.google.com/file/d/18DmdGlJidmn9pwpZkyGcEqs9u8tAzLLf/view", label:"Writing Big Words" },
+        { id:uid(), url:"https://docs.google.com/presentation/d/1ltEVdRu8bhD3orSiZm7brJm3ff_GjYsoL9DXNztzTSs/edit", label:"VanCura's Slides (3rd)" },
+        { id:uid(), url:"https://docs.google.com/document/d/1efp0rGRLpQLkyA3r-EyKVP3OKCgIl7ddVD2F7-WV6n8/edit", label:"4th Grade Writing Scope & Sequence" },
+        { id:uid(), url:"https://docs.google.com/document/d/1EW99nZ12MD7HtmEBX-YC31oFWJI0vGIhBEOrAL4-_og/edit", label:"3rd Grade Writing Scope & Sequence" },
+        { id:uid(), url:"https://docs.google.com/document/d/1DJ9fVeOGGYnTHx4ILBnU8Fqm4BTgLCNPD2s9S1yTZSU/edit", label:"1st Grade Writing Rubrics" },
+        { id:uid(), url:"https://drive.google.com/drive/folders/1yVnZkmEY_677j4JoeMSGPH0wDDvV9jXV", label:"Writing – District Resource Folder" },
+        { id:uid(), url:"https://docs.google.com/presentation/d/1Uiyfh6Hl7NPN_2wnc1qJbHijN8jFCZHasR-mQBlkoj8/edit", label:"Literacy Committee Slideshow (March 2025)" },
+        { id:uid(), url:"https://docs.google.com/document/d/1cRN75UQ7DdAQDYcp3AVA948Cpqa8g3IGrWOG593gLGM/edit", label:"Wonders Writing Continuum" },
+        { id:uid(), url:"https://www.michiganlearning.org/learning-hub/educational-videos/crafting-complex-sentences-mrs-defauw-read-write-roar/", label:"Crafting Complex Sentences (RWR)" },
+      ]
+    },
+    {
+      id:uid(), type:"project", schoolId:s[3], topicId:"fluency", gradeIds:["multi"],
+      title:"Fluency Resources", status:"in-progress", dueDate:"",
+      notes:"Fluency intervention and assessment tools.",
+      links:[
+        { id:uid(), url:"https://www.voyagersopris.com/docs/default-source/literacy/six-minute-solution/222_tsms_interm_sample.pdf", label:"Six Minute Solutions" },
+        { id:uid(), url:"https://drive.google.com/file/d/1AHVVadEvCNVvU7-xWX4fFhlUCX0rVqeb/view", label:"Decoding Analysis Template" },
+      ]
+    },
+    {
+      id:uid(), type:"project", schoolId:s[3], topicId:"phonics", gradeIds:["k","g1","g2"],
+      title:"HF Words Resources", status:"in-progress", dueDate:"",
+      notes:"High-frequency word resources across K-2. Distinguishing HF words vs. sight words in relation to WWR is an ongoing discussion.",
+      links:[
+        { id:uid(), url:"https://drive.google.com/file/d/1arORnb4gPGgM4KuVXjsxC32hbxH9Odws/view", label:"Six Shifts HF Words – Kindergarten" },
+        { id:uid(), url:"https://drive.google.com/file/d/19xF2nW74LjeRKR0k6LHqS6z78fmAzo2V/view", label:"Six Shifts 109 Power Words" },
+        { id:uid(), url:"https://www.reallygreatreading.com/resources/heart-word-magic", label:"Really Great Reading Heart Words" },
+        { id:uid(), url:"https://www.youtube.com/playlist?list=PLpmyCKvMd2b4jAqXNGqr5Nw-zqMGVDFzu", label:"Read Write Roar HF Words Playlist" },
+        { id:uid(), url:"https://docs.google.com/presentation/d/15USG4GqYBRgsbFO9GixZgFlf8EQa0jV_hYZBFu35Zt8/edit", label:"First Thirteen Words Slides" },
+        { id:uid(), url:"https://drive.google.com/file/d/1xLOQbRAAMedudozbQoOuUOah2gSHS2Ir/view", label:"Wonders HFW Routine" },
+        { id:uid(), url:"https://docs.google.com/document/d/1KB4HFYzIpxsoPLsbNrIuw_JRTz_oybBs8EtYhlMGAfw/edit", label:"HFW DRI Organizer" },
+        { id:uid(), url:"https://drive.google.com/file/d/1PHNbzCRG0alHDQWta6KF0a81lCdJO5iT/view", label:"RWR Slides 26-33" },
+        { id:uid(), url:"https://drive.google.com/file/d/1EzZHiVAE_oneK_t1yIdO29AQ0Jpoi5_w/view", label:"Assessment for Word Reading Article – ILA" },
+      ]
+    },
+    {
+      id:uid(), type:"project", schoolId:s[3], topicId:"phonemic", gradeIds:["prek","k","g1","g2"],
+      title:"Phonemic Awareness Resources", status:"in-progress", dueDate:"",
+      notes:"Heggerty and other PA resources for Pre-K through 2nd grade.",
+      links:[
+        { id:uid(), url:"https://my.heggerty.org/login", label:"Heggerty Login" },
+        { id:uid(), url:"https://shop.heggerty.org/wp-content/uploads/2020/08/Yellow-Redesigned-Preface-Pages-7.20.2020.pdf", label:"Primary PA Scope and Sequence" },
+        { id:uid(), url:"https://docs.google.com/document/d/1v5P7mOCMgMgvtWRd9pRBS1QqwyTmW8rATkiXrZAwHm8/edit", label:"K-2 Scope and Sequence" },
+        { id:uid(), url:"https://drive.google.com/file/d/13L2TwrRAY6svfm6j3z16Ltpw3ANgRcoH/view", label:"Sound Pronunciation Guide Video" },
+      ]
+    },
+    {
+      id:uid(), type:"project", schoolId:s[3], topicId:"vocabulary", gradeIds:["multi"],
+      title:"Vocabulary & Morphology Resources", status:"in-progress", dueDate:"",
+      notes:"Morphology planning and vocabulary lesson templates.",
+      links:[
+        { id:uid(), url:"https://drive.google.com/file/d/1_AN1BnAroNOX4M5JX9Yir5f5xj5BVCho/view", label:"Multi-year Morphology Plan" },
+        { id:uid(), url:"https://drive.google.com/file/d/1VcWllnqXUqk7R8QHYPbeS_BDe3vFN-q4/view", label:"Lesson Plan for Morphology" },
+        { id:uid(), url:"https://drive.google.com/file/d/1CzAUhQPW0886kyRjEkvxnH_Di4dmNMQY/view", label:"Vocabulary Lesson Template" },
+      ]
+    },
+    {
+      id:uid(), type:"project", schoolId:s[3], topicId:"comprehension", gradeIds:["multi"],
+      title:"Small Group Resources", status:"in-progress", dueDate:"",
+      notes:"Small group instructional strategies including Dialogic Reading, Word Connections, and decoding support for grades 4-5.",
+      links:[
+        { id:uid(), url:"https://www.readingrockets.org/topics/early-literacy-development/articles/dialogic-reading-effective-way-read-aloud-young-children", label:"Dialogic Reading (Reading Rockets)" },
+        { id:uid(), url:"https://drive.google.com/file/d/1I9cp73kk30ZHsIWrvTf3vUcI5ZTUlVJZ/view", label:"Using Dialogic Conversations" },
+        { id:uid(), url:"https://www.jessicatoste.com/wordconnections", label:"Word Connections" },
+        { id:uid(), url:"https://docs.google.com/document/d/1oydxg6wY4A1Crtdvt4Y-XyEUrDOnU0nhwp6XnFxTvGM/edit", label:"Word Connections PD Notes" },
+        { id:uid(), url:"https://docs.google.com/presentation/d/1MmOru_LPBMs4gR06lfA7hCMGP_ShYFgi/edit", label:"Decoding Threshold Slides (4-5)" },
+      ]
+    },
+    {
+      id:uid(), type:"project", schoolId:s[3], topicId:"comprehension", gradeIds:["multi"],
+      title:"Text Structure & Comprehension Resources", status:"in-progress", dueDate:"",
+      notes:"Text structure strategies and comprehension resources.",
+      links:[
+        { id:uid(), url:"https://www.readingrockets.org/topics/comprehension/articles/implementing-text-structure-strategy-your-classroom", label:"Text Structure Strategy (Reading Rockets)" },
+        { id:uid(), url:"https://www.readingrockets.org/classroom/comprehension/teaching-text-structure", label:"Teaching Text Structure" },
+        { id:uid(), url:"https://drive.google.com/file/d/1Auy8HHmVF697q-5UiuLKf0s1mJPX3Xu7/view", label:"Text Weight Guide" },
+        { id:uid(), url:"https://docs.google.com/presentation/d/1MmOru_LPBMs4gR06lfA7hCMGP_ShYFgi/edit", label:"Decoding Threshold Slides (4-5)" },
+        { id:uid(), url:"https://www.jessicatoste.com/wordconnections", label:"Word Connections" },
+        { id:uid(), url:"https://docs.google.com/document/d/1oydxg6wY4A1Crtdvt4Y-XyEUrDOnU0nhwp6XnFxTvGM/edit", label:"Word Connections PD Notes" },
+      ]
+    },
+    {
+      id:uid(), type:"project", schoolId:s[3], topicId:"writing", gradeIds:["multi"],
+      title:"Handwriting Resources", status:"in-progress", dueDate:"",
+      notes:"Peterson method, Size Matters, and handwriting PD resources.\n\nIdeal practice time: 75-100 minutes/week (Size Matters).",
+      links:[
+        { id:uid(), url:"https://docs.google.com/presentation/d/1vBTLHOnw_TgYpNAwMrw5l9Y7l_5pVsAAzCGWJ1VvqIM/edit", label:"SRE Handwriting PD (Aug 2025)" },
+        { id:uid(), url:"https://drive.google.com/file/d/14wTV3vLLsd06J5aH1vuop2mbASAcL8QZ/view", label:"Want to Improve Children's Handwriting? Article" },
+        { id:uid(), url:"https://drive.google.com/file/d/1-jWhlQCjE8Y8c5LuuYPtIgWJ_OqoTlZS/view", label:"Size Matters Poster" },
+        { id:uid(), url:"https://www.loom.com/share/182db139f084430da36ddeedd851bff4", label:"Handwriting Video – Tall Down Letters" },
+        { id:uid(), url:"https://www.loom.com/share/c2b2382638bc4e219f7ed53ccf6c62f9", label:"Handwriting Video – Hook Arounds" },
+        { id:uid(), url:"https://www.loom.com/share/05c62adb6126499e809431f7076205fe", label:"Handwriting Video – Small Down Letters" },
+        { id:uid(), url:"https://www.loom.com/share/461d9229c0714463b11e5d3ed0d79c0d", label:"Handwriting Video – Fall Letters (g,j,p,q,y)" },
+        { id:uid(), url:"https://www.loom.com/share/215aefa9ada446d7aac122e7d818b859", label:"Handwriting Video – Extra Letters (f,s,v,w,x,z)" },
+        { id:uid(), url:"https://drive.google.com/file/d/1Pdgp7awox-ZskIqJoPTjtEDcXtH0cR1A/view", label:"Peterson Resource" },
+        { id:uid(), url:"https://drive.google.com/file/d/1BZ3AW_Y6j1c3qCxShrxwO0WmD8tTjyt-/view", label:"Peterson Poster" },
+        { id:uid(), url:"https://www.readingrockets.org/topics/writing/articles/importance-teaching-handwriting", label:"Reading Rockets – Handwriting" },
+      ]
+    },
+    {
+      id:uid(), type:"project", schoolId:s[3], topicId:"phonics", gradeIds:["multi"],
+      title:"Wonders Curriculum Resources", status:"in-progress", dueDate:"",
+      notes:"Wonders K-5 resources, scope & sequences, and school feedback docs.",
+      links:[
+        { id:uid(), url:"https://connected.mcgraw-hill.com/rd14t/lessonDetails.do?lessonId=EV1PLT4ZTB82HB9HHEDLYF7RS4", label:"Wonders Login" },
+        { id:uid(), url:"https://docs.google.com/presentation/d/1MvEItjV8lcUjtMcfKRBI2fU6eHBGw5R2q-z7IuNPLOQ/edit", label:"Wonders Grade Level Must-dos" },
+        { id:uid(), url:"https://padlet.com/sneharaithatha2/wonders-2023-k-5-rwxdqypbl9rhp31l", label:"Wonders K-5 Padlet" },
+        { id:uid(), url:"https://drive.google.com/drive/folders/1R4JHllPv9WfWy3HVlgudGTwkkrbRQpZ1", label:"Wonders K-5 Scope & Sequence Folder" },
+        { id:uid(), url:"https://drive.google.com/drive/folders/1JcvNFFZILVKG3KpD4hvVktSVrLS8Vv8L", label:"Wonders Writing K-5" },
+        { id:uid(), url:"https://drive.google.com/drive/folders/1POS30nzKsw2qbdcLXPJhoMRkY9rI1m6q", label:"Wonders Foundational Skills K-2" },
+        { id:uid(), url:"https://drive.google.com/file/d/11UBlJSJF1IWSwE1C7nwGmbPW72w5Q1FR/view", label:"Wonders Instructional Routines Handbook" },
+        { id:uid(), url:"https://drive.google.com/drive/folders/1GORETFSRGlFg7IGp4tE1aVlni3Btowtg", label:"Wonders Classroom Resources" },
+        { id:uid(), url:"https://www.michigan.gov/mde/-/media/Project/Websites/mde/Literacy/Literacy-Grants/Section_35m_Ranking_Tier_1_Materials_and_Series.pdf", label:"35m Curriculum Rankings List (MDE)" },
+        { id:uid(), url:"https://docs.google.com/document/d/1u3JBOWqUXjhXeA0pucbOvb8sPCTXMKlnE1cxftSaAMo/edit", label:"Wonders Feedback – SRE" },
+        { id:uid(), url:"https://docs.google.com/document/d/1yPa3xcA8D3E543obi7VpHNc-1wKi7JG5RhxQ-S3yi28/edit", label:"Wonders Feedback – Writing" },
+        { id:uid(), url:"https://docs.google.com/document/d/1O_-AF702hth3Hl3DbFkNeAyqA95CdDnrHavvQmVW7S4/edit", label:"Wonders Feedback – HW" },
+        { id:uid(), url:"https://drive.google.com/drive/folders/1un-EiPRTi0VsCovp0kEGeb_qxYq2z8Ff", label:"Y5s Wonders Folder" },
+        { id:uid(), url:"https://docs.google.com/document/d/1B_SeD6YzUAdUJo46WWeVSoAXEcoom1e_OBp4JUr61P4/edit", label:"4th Grade Must-dos" },
+        { id:uid(), url:"https://docs.google.com/document/d/11hhpFGAyD5G7xH5qSDiZhzuDFMcBh4gdJh5o_l5JKMo/edit", label:"4th Grade Scope & Sequence" },
+      ]
+    },
+    {
+      id:uid(), type:"project", schoolId:s[3], topicId:"assessment", gradeIds:["prek","k","g1","g2","g3"],
+      title:"Intervention Programs & Placement", status:"in-progress", dueDate:"",
+      notes:"Intervention tiers:\n• Y5s–1st: DRI (classroom), UFLI (intervention)\n• 2nd–3rd: Phonics for Reading (Anita Archer)\n• 4th–5th: Adjusted Rewards / Anita Archer Rewards\n\nOpen question: Should we create a placement piece that sorts students into UFLI, Phonics for Reading, or Rewards regardless of grade level?",
+      links:[
+        { id:uid(), url:"https://mimtsstac.org/training/phonics-reading", label:"Phonics for Reading (MIMTSS)" },
+        { id:uid(), url:"https://drive.google.com/file/d/1fQBzUHKYChYPN8_SBazCmfg4ycBgOHYo/view", label:"Phonics for Reading – 1st Level Sample" },
+        { id:uid(), url:"https://drive.google.com/file/d/1g8pzcy4DaGXcLboatiziJDhoPtmDFjwf/view", label:"Phonics for Reading – 2nd Level Sample" },
+        { id:uid(), url:"https://drive.google.com/file/d/1SEc9It-fhINCU8yYnYeeMtxGiY9y0mAt/view", label:"Phonics for Reading – 3rd Level Sample" },
+        { id:uid(), url:"https://drive.google.com/drive/folders/1GVIAe5FDsWlyHSGu9hmqVPaW65zvKgIo", label:"UFLI Slides Folder" },
+        { id:uid(), url:"https://docs.google.com/presentation/d/1q5ZBAvYqU6ERWcG1u1PvblZoJzJCqfd-E-ZvKPJ74do/edit", label:"UFLI Overview" },
+        { id:uid(), url:"https://docs.google.com/presentation/d/1ew4zzDjUwn2P6SYNXzj3E1GA6-8Dq-O_CsQFe7zzsos/edit", label:"UFLI Mini-Conference" },
+        { id:uid(), url:"https://drive.google.com/drive/folders/1ty4n7SWaHZw6QN95L_t44YhyrG0IpRt6", label:"UFLI Resources Folder" },
+        { id:uid(), url:"https://docs.google.com/document/d/1SYDsvGwby1_R_vAX3LhoUZZJgHX3i0TpkseM0njazr4/edit", label:"DeWitt Intervention Grid" },
+        { id:uid(), url:"https://www.nifdi.org/programs/reading/rewards.html", label:"Rewards (NIFDI)" },
+        { id:uid(), url:"https://docs.google.com/document/d/1LvXh74O907nqHVdE79hO9t08cdq-DI7UvI24FZbw-rY/edit", label:"4th Grade Rewards/Stories" },
+        { id:uid(), url:"https://docs.google.com/document/d/1DexJAL5VbvW_74F3mPBvCPn1k0Zq0hbGCTU7W2YD9eA/edit", label:"5th Grade Rewards/Stories" },
+      ]
+    },
+    {
+      id:uid(), type:"project", schoolId:s[3], topicId:"phonemic", gradeIds:["prek","k"],
+      title:"Young Fives Resources", status:"in-progress", dueDate:"",
+      notes:"Standards, best practices, and Y5s network resources for early childhood literacy.\n\nLearning & Research:\n• Nell Duke resources from 2/25 quarterly\n• Michigan TK research (U of M EPI)\n• Dr. Julie Lindsey YouTube resources",
+      links:[
+        { id:uid(), url:"https://literacyessentials.org/downloads/gelndocs/pre-k_literacy_essentials.pdf", label:"Literacy Essentials PreK" },
+        { id:uid(), url:"https://drive.google.com/file/d/16_jQzXpKXQlLdJF3rc2rfD3GJ0FRj3m1/view", label:"MDE Early Childhood Standards – Literacy" },
+        { id:uid(), url:"https://drive.google.com/file/d/17rfwPCL79wZYseHgZ82kI4YJsbqkXR4f/view", label:"Kindergarten State Standards" },
+        { id:uid(), url:"https://www.readingrockets.org/topics/developmental-milestones/articles/literacy-milestones-age-5", label:"Literacy Milestones Age 5" },
+        { id:uid(), url:"https://drive.google.com/file/d/1Dvv-b9iunEP0sF0P5UO7WsfqeBfJbTmj/view", label:"IES Guide – Preparing Young Children (pg 47-68)" },
+        { id:uid(), url:"https://www.michigan.gov/-/media/Project/Websites/mde/2016/08/15/Ready_for_Kindergarten_442865_7.pdf", label:"Michigan Ready for Kindergarten" },
+        { id:uid(), url:"https://www.youtube.com/playlist?list=PLpmyCKvMd2b4NVVxwKoJkXONkPErllJTl", label:"Read Write Roar Preschool Segments" },
+        { id:uid(), url:"https://greatfirsteight.org/our-solution/", label:"Great First Eight Curriculum" },
+        { id:uid(), url:"https://www.youtube.com/@juliablindsey", label:"Dr. Julie Lindsey – YouTube Playlist" },
+        { id:uid(), url:"https://www.michiganallianceforfamilies.org/transition-to-kindergarten/", label:"Michigan Alliance for Families – TK" },
+        { id:uid(), url:"https://youtu.be/XAMNGQNhrSc", label:"Nell Duke – Quarterly Recording" },
+        { id:uid(), url:"https://docs.google.com/presentation/d/1Z9DdJY9ovEnhpCmKbkEsURZhnd0ygHkI/edit", label:"Nell Duke – Slides" },
+        { id:uid(), url:"https://edpolicy.umich.edu/research/epi-policy-briefs/michigan-transitional-kindergarten-impacts-early-education-enrollment", label:"Michigan TK – Impacts on Enrollment (UofM)" },
+        { id:uid(), url:"https://edpolicy.umich.edu/research/epi-policy-briefs/michigan-transitional-kindergarten-first-look-program-reach-and-features", label:"Michigan TK – First Look (UofM)" },
+        { id:uid(), url:"https://drive.google.com/file/d/1X0xh5Rc2Y3Sf6p-xbgznyjq34zMxDhS5/view", label:"Y5s Network – Session 1 Slides (SEL)" },
+        { id:uid(), url:"https://drive.google.com/file/d/1vA6nm43wQazG-zLgOd2Gzyi54KoQ4p71/view", label:"Y5s Network – Session 1 Learner Guide" },
+      ]
+    },
+
+    // ── SCHAVEY ROAD ─────────────────────────────────────────────────────────
+    {
+      id:uid(), type:"project", schoolId:s[0], topicId:"assessment", gradeIds:["multi"],
+      title:"SRE School Resources & Planning", status:"in-progress", dueDate:"",
+      notes:"SRE Action Items:\n• HF words minilesson from Wonders – small group or whole group?\n• Compare Blend-it Books to decodables in DRI lessons\n• Create word sorts for new spelling patterns (oa, ow, o, oe)\n• Ensure nothing is missed with slides\n• Writing: teachers supplementing with TPT slides, Lucy, etc.\n\nLeadership Goals (Fall 2025):\n• PD/clarity for letter naming fluency\n• HF words vs. sight words in relation to WWR\n• Handwriting, Peterson visuals, expectations (Aug. 26th)",
+      links:[
+        { id:uid(), url:"https://docs.google.com/spreadsheets/d/13JnmO-OWBGrYtAyPlGIDJ_MUmCGx8uDX_uno2sOIAYs/edit", label:"SRE Master Schedule" },
+        { id:uid(), url:"https://docs.google.com/document/d/1PBv34gaEcYfKSjy4RfFnQL6QIggwOtskPdGBSfCL1lM/edit", label:"SRE Implementation Plan" },
+        { id:uid(), url:"https://docs.google.com/document/d/1BLqu34xWN2cbub7u-QAHu3hVENtwheukAUUxnvqprAY/edit", label:"SRE SLT Rolling Agenda" },
+        { id:uid(), url:"https://docs.google.com/document/d/1qGDR5_igl8gO0XIHB8A_9EsgxUpvtR0NMxgnZ_Ox_UE/edit", label:"SRE Assessment Schedule" },
+        { id:uid(), url:"https://docs.google.com/spreadsheets/d/1kjxkQmeshs4EnSMQHQ8sHl0cGj2IO0nhP6T1BytpRKo/edit", label:"SRE Planning Guide" },
+        { id:uid(), url:"https://docs.google.com/spreadsheets/d/1ll5tew-fzHqX3WEqAozNCqOYMjrA5SuzhEr_mWBxoRs/edit", label:"SRE Resource Hub" },
+        { id:uid(), url:"https://docs.google.com/document/d/1-RFsIX_BXiYTjCocilYA63KxnvkRq8Vi2wRIJWu6X1A/edit", label:"SRE Small Group Fidelity Checklist" },
+        { id:uid(), url:"https://docs.google.com/spreadsheets/d/1jJaaVoIKz_WY4FhKtm9OfBt8WLUlAP_aVOjYcwNNSCQ/edit", label:"SRE Wonders Slides" },
+        { id:uid(), url:"https://docs.google.com/document/d/19LZisKAtftEg02GD2ddWUbFU9pxyxjvpgOORlAyK5Yw/edit", label:"SRE BOY Coach-Principal Meeting" },
+      ]
+    },
+
+    // ── SCOTT SCHOOL ──────────────────────────────────────────────────────────
+    {
+      id:uid(), type:"project", schoolId:s[1], topicId:"assessment", gradeIds:["multi"],
+      title:"Scott School Resources & Planning", status:"in-progress", dueDate:"",
+      notes:"Scott Action Items (from SLT July):\n• Revisiting MS with Fluency for PD\n• Incorporating writing into GLPS\n• Writing focus with grade level teams",
+      links:[
+        { id:uid(), url:"https://docs.google.com/spreadsheets/d/1mnyliJvTCkuVHXN1JniM1rgAb85TqtdpkLYU3z4ms40/edit", label:"Scott Master Schedule" },
+        { id:uid(), url:"https://docs.google.com/document/d/1Z_4Z9gVysi-d1xXVXP47Sj-SS4I9aKqNXuSuz09ozdA/edit", label:"Scott MTSS Implementation Plan" },
+        { id:uid(), url:"https://docs.google.com/document/d/1Vd02hM1jR-YMFOJ38pGuO-edyHWbU_04bqqv4hr0bos/edit", label:"Scott Leadership Rolling Agenda" },
+        { id:uid(), url:"https://docs.google.com/document/d/1PoNfQJ3GapwlRiFfhJp_Mb8M0d_eYmQX4CVtEasbGI8/edit", label:"Scott Grade/Building Reps" },
+        { id:uid(), url:"https://docs.google.com/document/d/12bg6Un-zqobHE701Xwt75Pp0by2CoJY1kTfgPLi1d-w/edit", label:"Scott BOY Coach-Principal Meeting" },
+      ]
+    },
+    {
+      id:uid(), type:"project", schoolId:s[1], topicId:"fluency", gradeIds:["multi"],
+      title:"Scott – Fluency PD Series", status:"planning", dueDate:"",
+      notes:"Revisiting multisyllabic words with fluency focus for professional development. From July SLT.",
+      links:[
+        { id:uid(), url:"https://www.michiganlearning.org/learning-hub/shows/read-write-roar/educational-videos/decoding-types-of-syllables-and-rocking-school/", label:"Decoding Syllable Types (RWR)" },
+        { id:uid(), url:"https://drive.google.com/file/d/1lsfRRpn03MTaSqT_T3C5IHVyD0XyEiqY/view", label:"The Six Shifts: Bigger Words" },
+        { id:uid(), url:"https://docs.google.com/presentation/d/1MmOru_LPBMs4gR06lfA7hCMGP_ShYFgi/preview", label:"The Decoding Threshold – Dr. Tortorelli" },
+      ]
+    },
+
+    // ── HERBISON WOODS ────────────────────────────────────────────────────────
+    {
+      id:uid(), type:"project", schoolId:s[2], topicId:"assessment", gradeIds:["multi"],
+      title:"Herbison Woods Resources & Planning", status:"in-progress", dueDate:"",
+      notes:"HW Teacher Schedules:\n• Munich – Writing 11:10–11:40\n• Dolby – Writing 12:35–1:05\n• Hingst – Reading small group 1:40\n• Nemeth – Reading Rotations 1:45–2:30\n• Meszaros – Reading Rotations 2:30–3:15\n• Munich – ELA 2:35–3:00\n• Earl – Writing 2:40\n• Heiler – Writing 2:40",
+      links:[
+        { id:uid(), url:"https://docs.google.com/spreadsheets/d/1hOgONDAoi18OYD8OaexlpITrzHkPIYEDaoL6tcrIHCs/edit", label:"HW Master Schedule" },
+        { id:uid(), url:"https://docs.google.com/document/d/1oqjoFTqhJ5PDSy57h5ciEbqWygLTiHH6l0lKDCpiM9g/edit", label:"HW Implementation Plan" },
+        { id:uid(), url:"https://docs.google.com/document/d/1ahCl6qbt1okfIQLlpw4qvXHXFED_mU_rqcAPUBbmJvI/edit", label:"HW Leadership Team Agenda" },
+        { id:uid(), url:"https://docs.google.com/document/d/13hHB2IPQp_rocZuyKoB-iJ0UZFHNU6LRRQ8xTUMrc70/edit", label:"HW BOY Coach-Principal Meeting" },
+        { id:uid(), url:"https://www.michiganlearning.org/learning-hub/educational-videos/cultural-awareness-in-michigan-respect-inclusivity-explained-ms-yarnell-read-write-roar/", label:"Cultural Awareness in Michigan (RWR)" },
+        { id:uid(), url:"https://www.readstopwrite.com/curriculum-download-page/", label:"Read Stop Write Curriculum" },
+      ]
+    },
+
+    // ── SAMPLE TASKS ──────────────────────────────────────────────────────────
+    { id:uid(), type:"task", schoolId:s[0], topicId:"phonics",      gradeIds:["k","g1","g2"], title:"Review HF word minilesson approach – small group vs. whole group?", priority:"high",   dueDate:"2026-03-14", done:false, notes:"Compare Blend-it Books to decodables in DRI lessons. Determine how many need to be switched out.", links:[] },
+    { id:uid(), type:"task", schoolId:s[0], topicId:"writing",      gradeIds:["multi"],       title:"Handwriting PD – Peterson visuals & expectations", priority:"medium", dueDate:"2026-03-26", done:false, notes:"Scheduled Aug. 26th. Confirm materials needed.", links:[] },
+    { id:uid(), type:"task", schoolId:s[1], topicId:"writing",      gradeIds:["g3","g4","g5"],title:"Writing focus with grade level teams", priority:"medium", dueDate:"2026-03-20", done:false, notes:"Incorporating writing into GLPS. Coordinate with grade level leads.", links:[] },
+    { id:uid(), type:"task", schoolId:s[2], topicId:"fluency",      gradeIds:["g2","g3"],     title:"Check in on Reading Rotations schedule – Nemeth & Meszaros", priority:"low",    dueDate:"2026-03-18", done:false, notes:"Nemeth 1:45–2:30, Meszaros 2:30–3:15", links:[] },
+    { id:uid(), type:"task", schoolId:s[3], topicId:"assessment",   gradeIds:["multi"],       title:"ERI/Para Meeting – Plan for 8/28 session", priority:"high",   dueDate:"2026-03-10", done:false,
+      notes:"Meeting dates: 8/28, 10/31, 11/25, 2/26, 5/29\n\nAM (9am–12pm): mCLASS training\n• Home → mCLASS Reading button\n• Reporting Tab: see all student data by school\n• Assessment Tab → Teacher-Administered → Benchmark\n  – K & 1st: start w/ LNF\n  – 2nd & 3rd: start w/ ORF\n\nPM (1–3pm): Behavior expectations\n• Give one, get one protocol (whole group)\n• Looks like / sounds like / feels like anchor chart\n• Break out by building → regroup to share",
+      links:[
+        { id:uid(), url:"https://www.readingrockets.org/topics/curriculum-and-instruction/articles/16-elements-explicit-instruction", label:"Anita Archer – 16 Elements of Explicit Instruction" },
+        { id:uid(), url:"https://www.readingrockets.org/topics/classroom-management/articles/when-then-sentences-evidence-based-behavior-strategy", label:"When-Then Sentences" },
+        { id:uid(), url:"https://www.readingrockets.org/topics/classroom-management/articles/pre-correcting-and-prompting-evidence-based-behavior-strategy", label:"Pre-correcting & Prompting" },
+        { id:uid(), url:"https://www.readingrockets.org/topics/classroom-management/articles/nonverbal-signals-evidence-based-behavior-strategy", label:"Nonverbal Signals" },
+      ]
+    },
+  ];
+}
+
+// ── Styles ───────────────────────────────────────────────────────────────────
+
+const css = `
+  ${GOOGLE_FONTS}
+  *, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
+  body { background:#fdf8f1; }
+  .hub { font-family:'Lato',sans-serif; background:#fdf8f1; min-height:100vh; color:#2d231a; }
+
+  /* Header */
+  .header { background:linear-gradient(135deg,#bf5e2e 0%,#c47d1a 50%,#bf5e2e 100%);
+    padding:0 28px; display:flex; align-items:center; justify-content:space-between; height:70px; }
+  .header-brand { display:flex; align-items:center; gap:14px; }
+  .header-title { font-family:'Playfair Display',serif; font-size:22px; font-weight:900; color:#fff; letter-spacing:.02em; }
+  .header-sub   { font-size:12px; color:rgba(255,255,255,.75); margin-top:1px; font-family:Lato,sans-serif; }
+  .nav-btn { background:rgba(255,255,255,.18); border:none; color:#fff; border-radius:22px;
+    padding:7px 18px; font-family:Lato,sans-serif; font-size:13px; font-weight:700;
+    cursor:pointer; transition:.2s; }
+  .nav-btn.active,.nav-btn:hover { background:rgba(255,255,255,.38); }
+
+  /* Layout */
+  .body { max-width:1160px; margin:0 auto; padding:26px 24px; }
+
+  /* Cards */
+  .card { background:#fff; border-radius:16px; padding:20px; box-shadow:0 2px 10px rgba(0,0,0,.07); }
+
+  /* Topic pill */
+  .tpill { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px;
+    font-size:12px; font-weight:700; }
+
+  /* Stat card */
+  .stat-card { border-radius:16px; padding:18px 20px; color:#fff; }
+
+  /* School tab */
+  .school-tab { display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:10px;
+    cursor:pointer; transition:.15s; font-size:13px; font-weight:700; border:none; background:transparent;
+    width:100%; text-align:left; }
+  .school-tab:hover { background:rgba(0,0,0,.05); }
+  .school-tab.active { color:#fff; }
+
+  /* Entry card */
+  .entry-card { background:#fff; border-radius:14px; padding:16px 18px; margin-bottom:12px;
+    box-shadow:0 2px 8px rgba(0,0,0,.06); border-left:5px solid #ccc; transition:.2s; }
+  .entry-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.10); transform:translateY(-1px); }
+
+  /* Checkbox */
+  .cb { width:22px; height:22px; border-radius:50%; border:2.5px solid #ddd; background:none;
+    cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    font-size:12px; transition:.2s; }
+  .cb.done { background:#6abf69; border-color:#6abf69; color:#fff; }
+
+  /* Modal overlay */
+  .overlay { position:fixed; inset:0; background:rgba(45,35,26,.45); display:flex;
+    align-items:center; justify-content:center; z-index:1000; padding:16px; }
+  .modal { background:#fffef9; border-radius:20px; padding:30px; width:560px; max-width:96vw;
+    max-height:92vh; overflow:auto; box-shadow:0 12px 48px rgba(0,0,0,.18); }
+
+  /* Form elements */
+  .label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.07em;
+    color:#9a7a5a; margin-bottom:5px; display:block; }
+  .input { width:100%; padding:9px 13px; border-radius:10px; border:2px solid #e8ddd0;
+    font-family:Lato,sans-serif; font-size:14px; background:#fdf8f1; outline:none;
+    transition:.2s; }
+  .input:focus { border-color:#c47d1a; background:#fff; }
+  textarea.input { height:110px; resize:vertical; }
+
+  /* Buttons */
+  .btn { border:none; border-radius:22px; padding:8px 20px; font-family:Lato,sans-serif;
+    font-size:13px; font-weight:700; cursor:pointer; transition:.2s; }
+  .btn-primary { background:linear-gradient(135deg,#c47d1a,#bf5e2e); color:#fff; }
+  .btn-primary:hover { opacity:.88; }
+  .btn-ghost  { background:#f0e8de; color:#7a5a3a; }
+  .btn-ghost:hover { background:#e8ddd0; }
+  .btn-danger { background:#fee2e2; color:#b91c1c; }
+  .btn-sm { padding:5px 13px; font-size:12px; }
+
+  /* Topic grid */
+  .topic-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .topic-tile { border-radius:14px; padding:14px 16px; cursor:pointer; transition:.2s;
+    border:3px solid transparent; }
+  .topic-tile:hover { transform:scale(1.03); }
+  .topic-tile.active { border-color:#2d231a; }
+  .topic-count { font-size:24px; font-weight:900; font-family:'Playfair Display',serif; margin-top:4px; }
+
+  /* Due date badge */
+  .due-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700;
+    padding:3px 9px; border-radius:20px; }
+
+  /* Progress bar */
+  .prog-bar { height:6px; border-radius:3px; background:#e8ddd0; overflow:hidden; }
+  .prog-fill { height:100%; border-radius:3px; transition:.4s; }
+
+  /* Deadline row */
+  .dl-row { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:10px;
+    margin-bottom:7px; cursor:pointer; transition:.15s; }
+  .dl-row:hover { background:#f5ede3; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:#f0e8de; }
+  ::-webkit-scrollbar-thumb { background:#c47d1a; border-radius:3px; }
+
+  @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+  .fade-up { animation:fadeUp .35s ease both; }
+
+  /* Empty state */
+  .empty { text-align:center; padding:56px 0; color:#b0906a; }
+  .empty-icon { font-size:52px; margin-bottom:10px; }
+
+  /* Link attachments */
+  .link-row { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:9px;
+    background:#fdf8f1; border:1.5px solid #e8ddd0; margin-bottom:6px; transition:.15s; }
+  .link-row:hover { border-color:#c47d1a; background:#fff; }
+  .link-add { display:flex; gap:8px; margin-top:8px; }
+  .link-type-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px;
+    border-radius:10px; font-size:11px; font-weight:700; }
+
+  /* Save toast */
+  .save-toast { position:fixed; bottom:24px; right:24px; background:#2d231a; color:#fff;
+    padding:9px 18px; border-radius:22px; font-size:13px; font-weight:700; z-index:2000;
+    display:flex; align-items:center; gap:7px; box-shadow:0 4px 20px rgba(0,0,0,.22);
+    animation:fadeUp .25s ease both; }
+  /* Data bar */
+  .data-bar { background:rgba(255,255,255,.12); border-radius:10px; padding:5px 12px;
+    display:flex; align-items:center; gap:6px; font-size:12px; color:#fff; font-weight:700;
+    cursor:pointer; border:none; transition:.2s; }
+  .data-bar:hover { background:rgba(255,255,255,.24); }
+`;
+
+// ── Main App ─────────────────────────────────────────────────────────────────
+
+const LS_KEY = "literacy-coach-hub-v1";
+
+export default function App() {
+  const [schools, setSchools] = useState(() => {
+    try { const d = JSON.parse(localStorage.getItem(LS_KEY)); return d?.schools || INITIAL_SCHOOLS; } catch { return INITIAL_SCHOOLS; }
+  });
+  const [entries, setEntries] = useState(() => {
+    try { const d = JSON.parse(localStorage.getItem(LS_KEY)); return d?.entries || seed(INITIAL_SCHOOLS); } catch { return seed(INITIAL_SCHOOLS); }
+  });
+  const [view, setView] = useState("dashboard");
+  const [filterSchool, setFilterSchool] = useState(null);
+  const [filterTopic,  setFilterTopic]  = useState(null);
+  const [filterGrade,  setFilterGrade]  = useState(null);
+  const [tab, setTab]  = useState("tasks");
+  const [modal, setModal] = useState(null);
+  const [form,  setForm]  = useState({});
+  const [search, setSearch] = useState("");
+  const [confirm, setConfirm] = useState(null);
+  const [saveToast, setSaveToast] = useState(false);
+  const importRef = useRef(null);
+
+  // ── persist to localStorage on every change ────────────────────────────────
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({ schools, entries }));
+      setSaveToast(true);
+      const t = setTimeout(() => setSaveToast(false), 1800);
+      return () => clearTimeout(t);
+    } catch(e) { console.warn("localStorage unavailable", e); }
+  }, [schools, entries]);
+
+  // ── export ─────────────────────────────────────────────────────────────────
+  function exportData() {
+    const blob = new Blob([JSON.stringify({ schools, entries, exportedAt: new Date().toISOString() }, null, 2)], { type:"application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `literacy-coach-hub-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ── import ─────────────────────────────────────────────────────────────────
+  function importData(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        const d = JSON.parse(evt.target.result);
+        if (d.schools && d.entries) {
+          setSchools(d.schools);
+          setEntries(d.entries);
+          setModal(null);
+          alert(`✅ Imported ${d.schools.length} schools and ${d.entries.length} entries.`);
+        } else { alert("❌ Invalid file format."); }
+      } catch { alert("❌ Could not read file."); }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  // ── helpers ────────────────────────────────────────────────────────────────
+
+  const topicMap  = Object.fromEntries(TOPICS.map(t  => [t.id, t]));
+  const schoolMap = Object.fromEntries(schools.map(s => [s.id, s]));
+  const gradeMap  = Object.fromEntries(GRADES.map(g  => [g.id, g]));
+
+  function filteredEntries() {
+    return entries.filter(e => {
+      if (e.type !== tab) return false;
+      if (filterSchool && e.schoolId !== filterSchool) return false;
+      if (filterTopic  && e.topicId  !== filterTopic)  return false;
+      if (filterGrade  && !(e.gradeIds||[]).includes(filterGrade)) return false;
+      if (search && !e.title.toLowerCase().includes(search.toLowerCase())
+                 && !e.notes.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+  }
+
+  function openNew() {
+    setForm({ type: tab, schoolId: filterSchool || schools[0].id,
+      topicId: filterTopic || TOPICS[0].id, gradeIds: filterGrade ? [filterGrade] : [],
+      priority:"medium", status:"planning", dueDate:"", title:"", notes:"", done:false, links:[] });
+    setModal("entry");
+  }
+
+  function openEdit(entry) {
+    setForm({ ...entry });
+    setModal("entry");
+  }
+
+  function saveEntry() {
+    if (!form.title?.trim()) return;
+    if (form.id) {
+      setEntries(es => es.map(e => e.id === form.id ? { ...form } : e));
+    } else {
+      setEntries(es => [...es, { ...form, id: uid(), createdAt: new Date().toISOString() }]);
+    }
+    setModal(null); setForm({});
+  }
+
+  function delEntry(id) { setEntries(es => es.filter(e => e.id !== id)); setConfirm(null); }
+  function toggleDone(id) { setEntries(es => es.map(e => e.id === id ? { ...e, done: !e.done } : e)); }
+
+  function addSchool(name) {
+    if (!name.trim() || schools.find(s=>s.name===name)) return;
+    const color = SCHOOL_COLORS[schools.length % SCHOOL_COLORS.length];
+    setSchools(s => [...s, { id: uid(), name, color }]);
+  }
+
+  function delSchool(id) {
+    setSchools(s => s.filter(x=>x.id!==id));
+    setEntries(es => es.filter(e=>e.schoolId!==id));
+    if (filterSchool === id) setFilterSchool(null);
+    setConfirm(null);
+  }
+
+  // ── deadline data ──────────────────────────────────────────────────────────
+  const deadlines = entries
+    .filter(e => e.dueDate && !(e.type==="task" && e.done))
+    .sort((a,b) => a.dueDate.localeCompare(b.dueDate))
+    .slice(0, 7);
+
+  // ── stats ──────────────────────────────────────────────────────────────────
+  const openTasks   = entries.filter(e=>e.type==="task"    && !e.done).length;
+  const doneTasks   = entries.filter(e=>e.type==="task"    &&  e.done).length;
+  const totalTasks  = openTasks + doneTasks;
+  const projects    = entries.filter(e=>e.type==="project").length;
+  const activeProj  = entries.filter(e=>e.type==="project" && e.status==="in-progress").length;
+
+  // ── topic counts ───────────────────────────────────────────────────────────
+  const topicCounts = Object.fromEntries(TOPICS.map(t => [t.id, entries.filter(e=>e.topicId===t.id).length]));
+
+  // ── render ─────────────────────────────────────────────────────────────────
+  return (
+    <div className="hub">
+      <style>{css}</style>
+
+      {/* Header */}
+      <div className="header">
+        <div className="header-brand">
+          <span style={{fontSize:34}}>📚</span>
+          <div>
+            <div className="header-title">Literacy Coach Hub</div>
+            <div className="header-sub">Your coaching workspace</div>
+          </div>
+        </div>
+        <div style={{display:"flex", gap:8, alignItems:"center"}}>
+          <button className="data-bar" onClick={exportData} title="Download your data as a JSON backup file">
+            ⬇️ Export
+          </button>
+          <button className="data-bar" onClick={()=>importRef.current?.click()} title="Restore from a previously exported file">
+            ⬆️ Import
+          </button>
+          <input ref={importRef} type="file" accept=".json" style={{display:"none"}} onChange={importData} />
+          <div style={{width:1, height:24, background:"rgba(255,255,255,.25)", margin:"0 4px"}} />
+          {["dashboard","workspace"].map(v => (
+            <button key={v} className={`nav-btn ${view===v?"active":""}`} onClick={()=>setView(v)}>
+              {v==="dashboard" ? "🏠 Overview" : "🗂 Workspace"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Hidden file input for import already set above */}
+
+      {/* Auto-save toast */}
+      {saveToast && (
+        <div className="save-toast">✓ Saved</div>
+      )}
+
+      <div className="body">
+
+        {/* ── DASHBOARD ── */}
+        {view === "dashboard" && (
+          <div className="fade-up">
+
+            {/* Stat strip */}
+            <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:26}}>
+              {[
+                { label:"Schools",        value:schools.length,  icon:"🏫", bg:"linear-gradient(135deg,#e07b4f,#c47d1a)" },
+                { label:"Open Tasks",     value:openTasks,       icon:"✅", bg:"linear-gradient(135deg,#5b8dd9,#3aab8c)" },
+                { label:"Projects",       value:projects,        icon:"📋", bg:"linear-gradient(135deg,#c47db5,#9b7fd4)" },
+                { label:"Active Projects",value:activeProj,      icon:"🔥", bg:"linear-gradient(135deg,#e8a838,#e05a5a)" },
+              ].map(({label,value,icon,bg})=>(
+                <div key={label} className="stat-card" style={{background:bg}}>
+                  <div style={{fontSize:28,marginBottom:4}}>{icon}</div>
+                  <div style={{fontFamily:"'Playfair Display',serif", fontSize:38, fontWeight:900, lineHeight:1}}>{value}</div>
+                  <div style={{fontSize:13, marginTop:4, opacity:.85}}>{label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{display:"grid", gridTemplateColumns:"1.1fr 1fr", gap:18, marginBottom:18}}>
+
+              {/* Topic overview */}
+              <div className="card">
+                <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16}}>
+                  <h3 style={{fontFamily:"'Playfair Display',serif", fontSize:17, fontWeight:700}}>📖 Literacy Topics</h3>
+                  <span style={{fontSize:12, color:"#b0906a"}}>Click to filter workspace</span>
+                </div>
+                <div className="topic-grid">
+                  {TOPICS.map(t => (
+                    <div key={t.id} className="topic-tile"
+                      style={{background:t.color+"18", borderColor: filterTopic===t.id ? t.color : "transparent"}}
+                      onClick={()=>{ setFilterTopic(t.id===filterTopic?null:t.id); setView("workspace"); }}>
+                      <div style={{fontSize:22}}>{t.emoji}</div>
+                      <div style={{fontSize:12, fontWeight:700, color:t.color, marginTop:3}}>{t.label}</div>
+                      <div className="topic-count" style={{color:t.color}}>{topicCounts[t.id]||0}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Deadlines + schools */}
+              <div style={{display:"flex", flexDirection:"column", gap:16}}>
+
+                {/* Upcoming */}
+                <div className="card" style={{flex:1}}>
+                  <h3 style={{fontFamily:"'Playfair Display',serif", fontSize:17, fontWeight:700, marginBottom:14}}>⏰ Upcoming Deadlines</h3>
+                  {deadlines.length===0
+                    ? <div style={{color:"#b0906a", fontSize:13, fontStyle:"italic"}}>All clear — no upcoming deadlines!</div>
+                    : deadlines.map(e => {
+                        const days = daysUntil(e.dueDate);
+                        const school = schoolMap[e.schoolId];
+                        const topic  = topicMap[e.topicId];
+                        const overdue = days < 0;
+                        const soon    = days >= 0 && days <= 3;
+                        return (
+                          <div key={e.id} className="dl-row"
+                            style={{background: overdue?"#fee2e218": soon?"#fef3c718":"transparent"}}
+                            onClick={()=>{ setView("workspace"); setFilterSchool(e.schoolId); setTab(e.type==="task"?"tasks":"projects"); }}>
+                            <span style={{fontSize:18}}>{e.type==="task"?"✅":"📋"}</span>
+                            <div style={{flex:1, minWidth:0}}>
+                              <div style={{fontWeight:700, fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{e.title}</div>
+                              <div style={{fontSize:11, color:"#b0906a", marginTop:1}}>
+                                {school?.name} · <span style={{color:topic?.color}}>{topic?.label}</span>
+                              </div>
+                            </div>
+                            <span className="due-badge" style={{
+                              background: overdue?"#fee2e2":soon?"#fef3c7":"#f0e8de",
+                              color: overdue?"#b91c1c":soon?"#92400e":"#7a5a3a"}}>
+                              {overdue ? `${Math.abs(days)}d late` : days===0 ? "Today!" : `${days}d`}
+                            </span>
+                          </div>
+                        );
+                      })
+                  }
+                </div>
+
+                {/* Task completion bar */}
+                {totalTasks > 0 && (
+                  <div className="card">
+                    <div style={{display:"flex", justifyContent:"space-between", marginBottom:8}}>
+                      <span style={{fontWeight:700, fontSize:14}}>Task Completion</span>
+                      <span style={{fontSize:13, color:"#7a5a3a"}}>{doneTasks}/{totalTasks}</span>
+                    </div>
+                    <div className="prog-bar">
+                      <div className="prog-fill" style={{width:`${Math.round(doneTasks/totalTasks*100)}%`, background:"linear-gradient(90deg,#6abf69,#3aab8c)"}} />
+                    </div>
+                    <div style={{fontSize:12, color:"#b0906a", marginTop:6}}>{Math.round(doneTasks/totalTasks*100)}% done — keep it up!</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* School buildings */}
+            <div className="card">
+              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16}}>
+                <h3 style={{fontFamily:"'Playfair Display',serif", fontSize:17, fontWeight:700}}>🏫 School Buildings</h3>
+                <button className="btn btn-primary btn-sm" onClick={()=>{ setForm({name:""}); setModal("school"); }}>+ Add School</button>
+              </div>
+              <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10}}>
+                {schools.map(s => {
+                  const cnt = entries.filter(e=>e.schoolId===s.id).length;
+                  const tasks = entries.filter(e=>e.schoolId===s.id && e.type==="task" && !e.done).length;
+                  const projs = entries.filter(e=>e.schoolId===s.id && e.type==="project").length;
+                  return (
+                    <div key={s.id} style={{borderRadius:14, padding:"16px 18px", background:s.color+"14", border:`2px solid ${s.color}44`, cursor:"pointer", transition:".2s"}}
+                      onClick={()=>{ setFilterSchool(s.id); setView("workspace"); }}>
+                      <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
+                        <div style={{fontWeight:700, fontSize:15, color:s.color}}>{s.name}</div>
+                        <button onClick={e=>{e.stopPropagation(); setConfirm({type:"school",id:s.id,label:s.name});}}
+                          style={{background:"none",border:"none",cursor:"pointer",color:"#ccc",fontSize:14,lineHeight:1}}>✕</button>
+                      </div>
+                      <div style={{marginTop:10, display:"flex", gap:8}}>
+                        <span style={{fontSize:12, background:s.color+"22", color:s.color, borderRadius:10, padding:"2px 9px", fontWeight:700}}>{tasks} tasks</span>
+                        <span style={{fontSize:12, background:s.color+"22", color:s.color, borderRadius:10, padding:"2px 9px", fontWeight:700}}>{projs} projects</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── WORKSPACE ── */}
+        {view === "workspace" && (
+          <div style={{display:"grid", gridTemplateColumns:"220px 1fr", gap:20}} className="fade-up">
+
+            {/* Sidebar */}
+            <div>
+              <div className="card" style={{marginBottom:14}}>
+                <div style={{fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:".07em", color:"#b0906a", marginBottom:10}}>Schools</div>
+                <button className={`school-tab ${!filterSchool?"active":""}`}
+                  style={!filterSchool?{background:"#c47d1a"}:{}}
+                  onClick={()=>setFilterSchool(null)}>
+                  <span>🏫</span> All Schools
+                </button>
+                {schools.map(s=>(
+                  <button key={s.id} className={`school-tab ${filterSchool===s.id?"active":""}`}
+                    style={filterSchool===s.id ? {background:s.color} : {}}
+                    onClick={()=>setFilterSchool(filterSchool===s.id?null:s.id)}>
+                    <span style={{width:10,height:10,borderRadius:"50%",background:s.color,display:"inline-block",flexShrink:0}}></span>
+                    <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}}>{s.name}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="card">
+                <div style={{fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:".07em", color:"#b0906a", marginBottom:10}}>Topics</div>
+                <button className={`school-tab ${!filterTopic?"active":""}`}
+                  style={!filterTopic?{background:"#c47d1a"}:{}}
+                  onClick={()=>setFilterTopic(null)}>
+                  📖 All Topics
+                </button>
+                {TOPICS.map(t=>(
+                  <button key={t.id} className={`school-tab ${filterTopic===t.id?"active":""}`}
+                    style={filterTopic===t.id?{background:t.color}:{}}
+                    onClick={()=>setFilterTopic(filterTopic===t.id?null:t.id)}>
+                    <span style={{fontSize:14}}>{t.emoji}</span>
+                    <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}}>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="card" style={{marginTop:14}}>
+                <div style={{fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:".07em", color:"#b0906a", marginBottom:10}}>Grade Level</div>
+                <button className={`school-tab ${!filterGrade?"active":""}`}
+                  style={!filterGrade?{background:"#c47d1a"}:{}}
+                  onClick={()=>setFilterGrade(null)}>
+                  🎓 All Grades
+                </button>
+                {GRADES.map(g=>(
+                  <button key={g.id} className={`school-tab ${filterGrade===g.id?"active":""}`}
+                    style={filterGrade===g.id?{background:g.color}:{}}
+                    onClick={()=>setFilterGrade(filterGrade===g.id?null:g.id)}>
+                    <span style={{width:22,height:22,borderRadius:6,background:g.color+"22",color:g.color,
+                      display:"inline-flex",alignItems:"center",justifyContent:"center",
+                      fontSize:11,fontWeight:900,flexShrink:0}}>{g.short}</span>
+                    <span style={{fontSize:12}}>{g.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Main */}
+            <div>
+              {/* Toolbar */}
+              <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:16, flexWrap:"wrap"}}>
+                <div style={{display:"flex", background:"#fff", borderRadius:12, padding:4, boxShadow:"0 1px 6px rgba(0,0,0,.07)", gap:4}}>
+                  {[{id:"tasks",label:"✅ Tasks"},{id:"projects",label:"📋 Projects"}].map(({id,label})=>(
+                    <button key={id} onClick={()=>setTab(id)} style={{
+                      padding:"7px 20px", borderRadius:9, border:"none", cursor:"pointer",
+                      fontFamily:"Lato,sans-serif", fontSize:13, fontWeight:700,
+                      background:tab===id ? "linear-gradient(135deg,#c47d1a,#bf5e2e)" : "transparent",
+                      color:tab===id?"#fff":"#7a5a3a", transition:".2s"}}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…"
+                  className="input" style={{width:200,padding:"8px 14px",borderRadius:22}} />
+                <div style={{flex:1}}/>
+                <button className="btn btn-primary" onClick={openNew}>
+                  + New {tab==="tasks"?"Task":"Project"}
+                </button>
+              </div>
+
+              {/* Active filters */}
+              {(filterSchool || filterTopic || filterGrade) && (
+                <div style={{display:"flex", gap:8, marginBottom:14, flexWrap:"wrap"}}>
+                  {filterSchool && <FilterChip label={schoolMap[filterSchool]?.name} color={schoolMap[filterSchool]?.color} onRemove={()=>setFilterSchool(null)} />}
+                  {filterTopic  && <FilterChip label={topicMap[filterTopic]?.label}  color={topicMap[filterTopic]?.color}  onRemove={()=>setFilterTopic(null)} />}
+                  {filterGrade  && <FilterChip label={`Grade: ${gradeMap[filterGrade]?.label}`} color={gradeMap[filterGrade]?.color} onRemove={()=>setFilterGrade(null)} />}
+                </div>
+              )}
+
+              {/* Entries */}
+              {filteredEntries().length === 0
+                ? <div className="empty">
+                    <div className="empty-icon">{tab==="tasks"?"✅":"📋"}</div>
+                    <div style={{fontFamily:"'Playfair Display',serif", fontSize:20, marginBottom:8}}>Nothing here yet!</div>
+                    <div style={{fontSize:14}}>Create your first {tab==="tasks"?"task":"project"} to get started.</div>
+                  </div>
+                : filteredEntries().map(entry => (
+                    <EntryCard key={entry.id} entry={entry}
+                      school={schoolMap[entry.schoolId]} topic={topicMap[entry.topicId]}
+                      grades={(entry.gradeIds||[]).map(id=>gradeMap[id]).filter(Boolean)}
+                      onEdit={()=>openEdit(entry)}
+                      onDelete={()=>setConfirm({type:"entry",id:entry.id,label:entry.title})}
+                      onToggle={()=>toggleDone(entry.id)} />
+                  ))
+              }
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── ENTRY MODAL ── */}
+      {modal === "entry" && (
+        <div className="overlay">
+          <div className="modal fade-up">
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22}}>
+              <h2 style={{fontFamily:"'Playfair Display',serif", fontSize:20, fontWeight:700}}>
+                {form.id ? "Edit" : "New"} {form.type==="task"?"Task":"Project"}
+              </h2>
+              <button onClick={()=>setModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:22,color:"#b0906a"}}>✕</button>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div>
+                <label className="label">Title *</label>
+                <input className="input" value={form.title||""} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="What needs to be done?" />
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div>
+                  <label className="label">School Building</label>
+                  <select className="input" value={form.schoolId||""} onChange={e=>setForm(f=>({...f,schoolId:e.target.value}))}>
+                    {schools.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Literacy Topic</label>
+                  <select className="input" value={form.topicId||""} onChange={e=>setForm(f=>({...f,topicId:e.target.value}))}>
+                    {TOPICS.map(t=><option key={t.id} value={t.id}>{t.emoji} {t.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div>
+                  <label className="label">Due Date</label>
+                  <input type="date" className="input" value={form.dueDate||""} onChange={e=>setForm(f=>({...f,dueDate:e.target.value}))} />
+                </div>
+                <div>
+                  {tab==="tasks"
+                    ? <>
+                        <label className="label">Priority</label>
+                        <select className="input" value={form.priority||"medium"} onChange={e=>setForm(f=>({...f,priority:e.target.value}))}>
+                          {PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}
+                        </select>
+                      </>
+                    : <>
+                        <label className="label">Status</label>
+                        <select className="input" value={form.status||"planning"} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>
+                          {PROJ_STATUSES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
+                        </select>
+                      </>
+                  }
+                </div>
+              </div>
+              <div>
+                <label className="label">Notes / Outline</label>
+                <textarea className="input" value={form.notes||""} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="Add details, next steps, observations…" />
+              </div>
+              <div>
+                <label className="label">Grade Level(s)</label>
+                <div style={{display:"flex",flexWrap:"wrap",gap:7,padding:"10px 12px",borderRadius:10,border:"2px solid #e8ddd0",background:"#fdf8f1"}}>
+                  {GRADES.map(g=>{
+                    const selected = (form.gradeIds||[]).includes(g.id);
+                    return (
+                      <button key={g.id} type="button"
+                        onClick={()=>setForm(f=>({...f, gradeIds: selected
+                          ? (f.gradeIds||[]).filter(id=>id!==g.id)
+                          : [...(f.gradeIds||[]), g.id]}))}
+                        style={{padding:"4px 11px",borderRadius:16,border:`2px solid ${selected?g.color:g.color+"44"}`,
+                          background:selected?g.color:g.color+"14",color:selected?"#fff":g.color,
+                          fontFamily:"Lato,sans-serif",fontSize:12,fontWeight:700,cursor:"pointer",transition:".15s"}}>
+                        {g.short !== g.label.slice(0,g.short.length) ? g.short : g.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{fontSize:11,color:"#b0906a",marginTop:4}}>Select all that apply</div>
+              </div>
+              <LinkManager links={form.links||[]} onChange={links=>setForm(f=>({...f,links}))} />
+            </div>
+            <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:22}}>
+              <button className="btn btn-ghost" onClick={()=>setModal(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveEntry}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD SCHOOL MODAL ── */}
+      {modal === "school" && (
+        <div className="overlay">
+          <div className="modal fade-up" style={{width:380}}>
+            <h2 style={{fontFamily:"'Playfair Display',serif", fontSize:20, fontWeight:700, marginBottom:20}}>Add School Building</h2>
+            <label className="label">School Name</label>
+            <input className="input" value={form.name||""} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Jefferson Primary" />
+            <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:20}}>
+              <button className="btn btn-ghost" onClick={()=>setModal(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={()=>{addSchool(form.name);setModal(null);}}>Add</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CONFIRM DELETE ── */}
+      {confirm && (
+        <div className="overlay">
+          <div className="modal fade-up" style={{width:360, textAlign:"center"}}>
+            <div style={{fontSize:44,marginBottom:10}}>⚠️</div>
+            <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:18,marginBottom:8}}>Delete this {confirm.type==="school"?"school":"item"}?</h3>
+            <p style={{color:"#9a7a5a",fontSize:14,marginBottom:22}}>
+              "{confirm.label}" {confirm.type==="school"?"and all its entries":""} will be permanently removed.
+            </p>
+            <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+              <button className="btn btn-ghost" onClick={()=>setConfirm(null)}>Cancel</button>
+              <button className="btn btn-danger" onClick={()=>confirm.type==="school"?delSchool(confirm.id):delEntry(confirm.id)}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function EntryCard({ entry, school, topic, grades, onEdit, onDelete, onToggle }) {
+  const [expanded, setExpanded] = useState(false);
+  const isTask = entry.type === "task";
+  const days   = daysUntil(entry.dueDate);
+  const overdue = days !== null && days < 0 && !(isTask && entry.done);
+  const soon    = days !== null && days >= 0 && days <= 3 && !(isTask && entry.done);
+
+  const pri  = PRIORITIES.find(p=>p.id===entry.priority);
+  const stat = PROJ_STATUSES.find(s=>s.id===entry.status);
+
+  return (
+    <div className="entry-card fade-up" style={{borderLeftColor: topic?.color||"#ccc", opacity: isTask&&entry.done?.65:1}}>
+      <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+        {isTask && (
+          <button className={`cb ${entry.done?"done":""}`} onClick={onToggle}>
+            {entry.done && "✓"}
+          </button>
+        )}
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginBottom:4}}>
+            <span style={{fontWeight:700,fontSize:15,textDecoration:isTask&&entry.done?"line-through":"none"}}>
+              {entry.title}
+            </span>
+            {topic && (
+              <span className="tpill" style={{background:topic.color+"1a",color:topic.color}}>
+                {topic.emoji} {topic.label}
+              </span>
+            )}
+            {isTask && pri && (
+              <span className="tpill" style={{background:pri.bg,color:pri.fg}}>{pri.label}</span>
+            )}
+            {!isTask && stat && (
+              <span className="tpill" style={{background:stat.bg,color:stat.fg}}>{stat.label}</span>
+            )}
+            {entry.dueDate && (
+              <span className="due-badge" style={{
+                background:overdue?"#fee2e2":soon?"#fef3c7":"#f0e8de",
+                color:overdue?"#b91c1c":soon?"#92400e":"#7a5a3a"}}>
+                📅 {overdue?`${Math.abs(days)}d overdue`:days===0?"Today":fmtDate(entry.dueDate)}
+              </span>
+            )}
+          </div>
+          {school && (
+            <div style={{fontSize:12,color:"#b0906a",marginBottom:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+              <span style={{background:school.color+"1a",color:school.color,borderRadius:8,padding:"1px 8px",fontWeight:700}}>{school.name}</span>
+              {grades && grades.length > 0 && grades.map(g=>(
+                <span key={g.id} style={{background:g.color+"18",color:g.color,borderRadius:8,padding:"1px 8px",fontWeight:700,fontSize:11,border:`1px solid ${g.color}44`}}>
+                  🎓 {g.label}
+                </span>
+              ))}
+            </div>
+          )}
+          {entry.notes && (
+            <div>
+              <div style={{fontSize:13,color:"#6b5040",lineHeight:1.55,whiteSpace:"pre-wrap",
+                maxHeight:expanded?"none":"56px",overflow:"hidden"}}>
+                {entry.notes}
+              </div>
+              {entry.notes.length > 100 && (
+                <button onClick={()=>setExpanded(e=>!e)}
+                  style={{background:"none",border:"none",cursor:"pointer",color:"#c47d1a",fontSize:12,padding:"2px 0",fontWeight:700}}>
+                  {expanded?"▲ Less":"▼ More"}
+                </button>
+              )}
+            </div>
+          )}
+          {entry.links && entry.links.length > 0 && (
+            <div style={{marginTop:8}}>
+              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",color:"#b0906a",marginBottom:5}}>📎 Attachments</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                {entry.links.map(link=>{
+                  const lt = detectLinkType(link.url);
+                  return (
+                    <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
+                      style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 11px",
+                        borderRadius:20,background:lt.color+"14",border:`1.5px solid ${lt.color}44`,
+                        color:lt.color,fontSize:12,fontWeight:700,textDecoration:"none",transition:".15s",
+                        maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}
+                      title={link.url}>
+                      <span>{lt.icon}</span>
+                      <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{link.label || lt.label}</span>
+                      <span style={{opacity:.5,fontSize:10}}>↗</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+        <div style={{display:"flex",gap:6,flexShrink:0}}>
+          <button onClick={onEdit}  style={{background:"#f0e8de",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,padding:"5px 9px",color:"#7a5a3a"}}>✏️</button>
+          <button onClick={onDelete} style={{background:"#fee2e2",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,padding:"5px 9px",color:"#b91c1c"}}>🗑</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LinkManager({ links, onChange }) {
+  const [url,   setUrl]   = useState("");
+  const [label, setLabel] = useState("");
+  const [error, setError] = useState("");
+
+  function addLink() {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    try { new URL(trimmed.startsWith("http") ? trimmed : "https://"+trimmed); }
+    catch { setError("Please enter a valid URL."); return; }
+    const finalUrl = trimmed.startsWith("http") ? trimmed : "https://"+trimmed;
+    const lt = detectLinkType(finalUrl);
+    onChange([...links, { id: uid(), url: finalUrl, label: label.trim() || lt.label }]);
+    setUrl(""); setLabel(""); setError("");
+  }
+
+  function removeLink(id) { onChange(links.filter(l=>l.id!==id)); }
+
+  return (
+    <div>
+      <label className="label" style={{display:"block",marginBottom:8}}>📎 Links & Attachments</label>
+      {links.length > 0 && (
+        <div style={{marginBottom:8}}>
+          {links.map(link=>{
+            const lt = detectLinkType(link.url);
+            return (
+              <div key={link.id} className="link-row">
+                <span style={{fontSize:16}}>{lt.icon}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:700,fontSize:13,color:lt.color,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{link.label}</div>
+                  <div style={{fontSize:11,color:"#b0906a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{link.url}</div>
+                </div>
+                <span className="link-type-badge" style={{background:lt.color+"18",color:lt.color}}>{lt.label}</span>
+                <button onClick={()=>removeLink(link.id)} style={{background:"#fee2e2",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,padding:"3px 7px",color:"#b91c1c",flexShrink:0}}>✕</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div style={{background:"#fdf8f1",borderRadius:10,border:"2px solid #e8ddd0",padding:"10px 12px"}}>
+        <div style={{fontSize:11,color:"#9a7a5a",fontWeight:700,marginBottom:7}}>ADD A LINK</div>
+        <input value={url} onChange={e=>{setUrl(e.target.value);setError("");}}
+          placeholder="Paste URL (Google Drive, Doc, Slides, any link…)"
+          className="input" style={{marginBottom:7}}
+          onKeyDown={e=>e.key==="Enter"&&addLink()} />
+        <div style={{display:"flex",gap:8}}>
+          <input value={label} onChange={e=>setLabel(e.target.value)}
+            placeholder="Label (optional — e.g. 'Lesson Plan')"
+            className="input" style={{flex:1}}
+            onKeyDown={e=>e.key==="Enter"&&addLink()} />
+          <button onClick={addLink} className="btn btn-primary btn-sm" style={{flexShrink:0}}>+ Add</button>
+        </div>
+        {error && <div style={{color:"#b91c1c",fontSize:12,marginTop:5}}>{error}</div>}
+        <div style={{fontSize:11,color:"#b0906a",marginTop:6}}>
+          🔵 Google Docs · Sheets · Slides · Drive folders · YouTube · Canva · any URL
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FilterChip({ label, color, onRemove }) {
+  return (
+    <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 12px",borderRadius:20,
+      background:color+"18",border:`1.5px solid ${color}44`,fontSize:12,fontWeight:700,color:color}}>
+      {label}
+      <button onClick={onRemove} style={{background:"none",border:"none",cursor:"pointer",color:color,fontSize:14,lineHeight:1,padding:0}}>✕</button>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
+  </script>
+</body>
+</html>
