@@ -192,8 +192,8 @@ function seed(sc){
 }
 
 function App(){
-  const[schools,setSchools]=useState(()=>{try{const d=JSON.parse(localStorage.getItem(LSK));return d&&d.schools?d.schools:IS;}catch(e){return IS;}});
-  const[entries,setEntries]=useState(()=>{try{const d=JSON.parse(localStorage.getItem(LSK));return d&&d.entries?d.entries:seed(IS);}catch(e){return seed(IS);}});
+  const[schools,setSchools]=useState(()=>{try{const raw=localStorage.getItem(LSK);if(!raw)return IS;const d=JSON.parse(raw);return d&&d.schools&&d.schools.length?d.schools:IS;}catch(e){return IS;}});
+  const[entries,setEntries]=useState(()=>{try{const raw=localStorage.getItem(LSK);if(!raw)return[];const d=JSON.parse(raw);return d&&d.entries?d.entries:[];}catch(e){return[];}});
   const[view,setView]=useState("dashboard");
   const[fSch,setFSch]=useState(null);
   const[fTop,setFTop]=useState(null);
