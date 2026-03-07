@@ -25,7 +25,7 @@ body{background:#fdf8f1;font-family:Lato,sans-serif;color:#2d231a}
 .stab.on{color:#fff}
 .ec{background:#fff;border-radius:14px;padding:16px;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.06);border-left:5px solid #ccc;transition:.2s}
 .ec:hover{box-shadow:0 4px 16px rgba(0,0,0,.1);transform:translateY(-1px)}
-.cb{width:22px;height:22px;border-radius:50%;border:2.5px solid #ddd;background:none;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px}
+.cb{width:26px;height:26px;border-radius:50%;border:2.5px solid #c47d1a;background:none;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;transition:.2s;margin-top:1px}.cb:hover{background:#c47d1a22}
 .cb.dn{background:#6abf69;border-color:#6abf69;color:#fff}
 .ov{position:fixed;inset:0;background:rgba(45,35,26,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}
 .mo{background:#fffef9;border-radius:20px;padding:28px;width:560px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,.18)}
@@ -97,10 +97,10 @@ const IS=[
   {id:"s3",name:"Herbison Woods",color:SCOLS[2]},
   {id:"s4",name:"General / District",color:SCOLS[3]},
 ];
-const PRIS=[
-  {id:"high",label:"High",bg:"#fee2e2",fg:"#b91c1c"},
-  {id:"medium",label:"Med",bg:"#fef3c7",fg:"#92400e"},
-  {id:"low",label:"Low",bg:"#dcfce7",fg:"#166534"},
+const TASK_STATS=[
+  {id:"not-started",label:"Not Started",bg:"#f3f3f3",fg:"#666"},
+  {id:"in-progress",label:"In Progress",bg:"#fef3c7",fg:"#92400e"},
+  {id:"on-hold",label:"On Hold",bg:"#fee2e2",fg:"#b91c1c"},
 ];
 const STATS=[
   {id:"planning",label:"Planning",bg:"#e0f0ff",fg:"#1d5fa3"},
@@ -236,7 +236,7 @@ function App(){
     });
   }
   function sf(u){setForm(f=>Object.assign({},f,u));}
-  function openNew(){setForm({type:tab,schoolId:fSch||schools[0].id,topicId:fTop||TOPICS[0].id,gradeIds:fGr?[fGr]:[],priority:"medium",status:"planning",dueDate:"",title:"",notes:"",done:false,links:[]});setModal("entry");}
+  function openNew(){setForm({type:tab,schoolId:fSch||schools[0].id,topicId:fTop||TOPICS[0].id,gradeIds:fGr?[fGr]:[],taskStatus:"not-started",status:"planning",dueDate:"",title:"",notes:"",done:false,links:[]});setModal("entry");}
   function openEdit(e){setForm(Object.assign({},e));setModal("entry");}
   function saveEntry(){
     if(!(form.title||"").trim())return;
@@ -465,8 +465,8 @@ function App(){
             D("div",null,D("label",{className:"lbl"},"Due Date"),D("input",{type:"date",className:"inp",value:form.dueDate||"",onChange:function(e){sf({dueDate:e.target.value});}})),
             D("div",null,
               form.type==="task"
-                ?[D("label",{className:"lbl",key:"l"},"Priority"),D("select",{key:"s",className:"inp",value:form.priority||"medium",onChange:function(e){sf({priority:e.target.value});}},
-                    ...PRIS.map(function(p){return D("option",{key:p.id,value:p.id},p.label);})
+                ?[D("label",{className:"lbl",key:"l"},"Status"),D("select",{key:"s",className:"inp",value:form.taskStatus||"not-started",onChange:function(e){sf({taskStatus:e.target.value});}},
+                    ...TASK_STATS.map(function(p){return D("option",{key:p.id,value:p.id},p.label);})
                   )]
                 :[D("label",{className:"lbl",key:"l"},"Status"),D("select",{key:"s",className:"inp",value:form.status||"planning",onChange:function(e){sf({status:e.target.value});}},
                     ...STATS.map(function(s){return D("option",{key:s.id,value:s.id},s.label);})
@@ -537,21 +537,22 @@ function App(){
 function EntryCard(props){
   const entry=props.entry,school=props.school,topic=props.topic,grades=props.grades,linkedProject=props.linkedProject,onEdit=props.onEdit,onDelete=props.onDelete,onToggle=props.onToggle;
   const[exp,setExp]=useState(false);
-  const isTask=entry.type==="task";
+  const isTask=entry.type==="task"||entry.type==="tasks";
   const d=days(entry.dueDate);
   const ov=d!==null&&d<0&&!(isTask&&entry.done);
   const sn=d!==null&&d>=0&&d<=3&&!(isTask&&entry.done);
-  const pri=PRIS.filter(function(p){return p.id===entry.priority;})[0];
+  const isTask2=entry.type==="task"||entry.type==="tasks";
+  const pri=TASK_STATS.filter(function(p){return p.id===(entry.taskStatus||"not-started");})[0];
   const stat=STATS.filter(function(s){return s.id===entry.status;})[0];
   function D(tag,p){const a=[tag,p||null];for(let i=2;i<arguments.length;i++)a.push(arguments[i]);return ce.apply(null,a);}
   return D("div",{className:"ec fu",style:{borderLeftColor:(topic&&topic.color)||"#ccc",opacity:isTask&&entry.done?0.6:1}},
     D("div",{style:{display:"flex",alignItems:"flex-start",gap:10}},
-      isTask&&D("button",{className:"cb"+(entry.done?" dn":""),onClick:onToggle},entry.done?"✓":null),
+      isTask&&D("button",{className:"cb"+(entry.done?" dn":""),onClick:onToggle,title:entry.done?"Mark incomplete":"Mark complete"},entry.done?"✓":""),
       D("div",{style:{flex:1,minWidth:0}},
         D("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:4}},
           D("span",{style:{fontWeight:700,fontSize:14,textDecoration:isTask&&entry.done?"line-through":"none"}},entry.title),
           topic&&D("span",{className:"pill",style:{background:topic.color+"1a",color:topic.color}},topic.emoji+" "+topic.label),
-          isTask&&pri&&D("span",{className:"pill",style:{background:pri.bg,color:pri.fg}},pri.label),
+          (isTask||isTask2)&&pri&&D("span",{className:"pill",style:{background:pri.bg,color:pri.fg}},pri.label),
           !isTask&&stat&&D("span",{className:"pill",style:{background:stat.bg,color:stat.fg}},stat.label),
           entry.dueDate&&D("span",{className:"due",style:{background:ov?"#fee2e2":sn?"#fef3c7":"#f0e8de",color:ov?"#b91c1c":sn?"#92400e":"#7a5a3a"}},
             "📅 "+(ov?Math.abs(d)+"d overdue":d===0?"Today":fmt(entry.dueDate))
