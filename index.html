@@ -420,9 +420,26 @@ function App(){
             D("button",{onClick:function(){setFGr(null);},style:{background:"none",border:"none",cursor:"pointer",fontSize:13,padding:0,marginLeft:2,color:GM[fGr]&&GM[fGr].color}},"✕")
           )
         ),
-        filt.length===0
-          ?D("div",{className:"empty"},D("div",{style:{fontSize:44,marginBottom:8}},tab==="tasks"?"✅":"📋"),D("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:18,marginBottom:6}},"Nothing here yet!"),D("div",{style:{fontSize:14}},"Create your first "+(tab==="tasks"?"task":"project")+"."))
-          :filt.map(function(entry){return ce(EntryCard,{key:entry.id,entry:entry,school:SM[entry.schoolId],topic:TM[entry.topicId],grades:(entry.gradeIds||[]).map(function(id){return GM[id];}).filter(Boolean),onEdit:function(){openEdit(entry);},onDelete:function(){setConfirm({type:"entry",id:entry.id,label:entry.title});},onToggle:function(){toggleDone(entry.id);}});})
+        (function(){
+          const isTask=tab==="tasks";
+          const active=filt.filter(function(e){return !(e.done);});
+          const archived=filt.filter(function(e){return e.done;});
+          const projMap=Object.fromEntries(entries.filter(function(e){return e.type==="project"||e.type==="projects";}).map(function(p){return[p.id,p];}));
+          if(filt.length===0) return D("div",{className:"empty"},D("div",{style:{fontSize:44,marginBottom:8}},isTask?"✅":"📋"),D("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:18,marginBottom:6}},"Nothing here yet!"),D("div",{style:{fontSize:14}},"Create your first "+(isTask?"task":"project")+"."));
+          return D("div",null,
+            active.length>0&&D("div",null,
+              active.map(function(entry){return ce(EntryCard,{key:entry.id,entry:entry,school:SM[entry.schoolId],topic:TM[entry.topicId],grades:(entry.gradeIds||[]).map(function(id){return GM[id];}).filter(Boolean),linkedProject:entry.linkedProjectId?projMap[entry.linkedProjectId]:null,onEdit:function(){openEdit(entry);},onDelete:function(){setConfirm({type:"entry",id:entry.id,label:entry.title});},onToggle:function(){toggleDone(entry.id);}});})
+            ),
+            isTask&&archived.length>0&&D("div",{style:{marginTop:24}},
+              D("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:10}},
+                D("div",{style:{flex:1,height:1,background:"#e8ddd0"}}),
+                D("span",{style:{fontSize:12,fontWeight:700,color:"#b0906a",textTransform:"uppercase",letterSpacing:".07em",whiteSpace:"nowrap"}},"📦 Archived ("+archived.length+")"),
+                D("div",{style:{flex:1,height:1,background:"#e8ddd0"}})
+              ),
+              archived.map(function(entry){return ce(EntryCard,{key:entry.id,entry:entry,school:SM[entry.schoolId],topic:TM[entry.topicId],grades:[],linkedProject:entry.linkedProjectId?projMap[entry.linkedProjectId]:null,onEdit:function(){openEdit(entry);},onDelete:function(){setConfirm({type:"entry",id:entry.id,label:entry.title});},onToggle:function(){toggleDone(entry.id);}});})
+            )
+          );
+        })()
       )
     )
     ),
@@ -456,19 +473,31 @@ function App(){
                   )]
             )
           ),
-          D("div",null,D("label",{className:"lbl"},"Notes"),D("textarea",{className:"inp",value:form.notes||"",onChange:function(e){sf({notes:e.target.value});},placeholder:"Details, next steps, observations…"})),
-          D("div",null,
-            D("label",{className:"lbl"},"Grade Level(s)"),
-            D("div",{style:{display:"flex",flexWrap:"wrap",gap:6,padding:"8px 10px",borderRadius:10,border:"2px solid #e8ddd0",background:"#fdf8f1"}},
-              ...GRADES.map(function(g){
-                const sel=(form.gradeIds||[]).indexOf(g.id)>-1;
-                return D("button",{key:g.id,type:"button",style:{padding:"3px 10px",borderRadius:14,border:"2px solid "+(sel?g.color:g.color+"44"),background:sel?g.color:g.color+"14",color:sel?"#fff":g.color,fontFamily:"Lato,sans-serif",fontSize:12,fontWeight:700,cursor:"pointer"},
-                  onClick:function(){sf({gradeIds:sel?(form.gradeIds||[]).filter(function(id){return id!==g.id;}):(form.gradeIds||[]).concat([g.id])});}},g.short);
-              })
-            ),
-            D("div",{style:{fontSize:11,color:"#b0906a",marginTop:3}},"Select all that apply")
-          ),
-          ce(LinkManager,{links:form.links||[],onChange:function(links){sf({links});}})
+          (form.type==="task"||form.type==="tasks")
+            ?D("div",null,
+                D("label",{className:"lbl"},"Link to Project (optional)"),
+                D("select",{className:"inp",value:form.linkedProjectId||"",onChange:function(e){sf({linkedProjectId:e.target.value});}},
+                  D("option",{value:""},"— No linked project —"),
+                  ...entries.filter(function(e){return e.type==="project"||e.type==="projects";}).map(function(p){
+                    return D("option",{key:p.id,value:p.id},p.title);
+                  })
+                )
+              )
+            :[
+              D("div",{key:"notes"},D("label",{className:"lbl"},"Notes"),D("textarea",{className:"inp",value:form.notes||"",onChange:function(e){sf({notes:e.target.value});},placeholder:"Details, next steps, observations…"})),
+              D("div",{key:"grades"},
+                D("label",{className:"lbl"},"Grade Level(s)"),
+                D("div",{style:{display:"flex",flexWrap:"wrap",gap:6,padding:"8px 10px",borderRadius:10,border:"2px solid #e8ddd0",background:"#fdf8f1"}},
+                  ...GRADES.map(function(g){
+                    const sel=(form.gradeIds||[]).indexOf(g.id)>-1;
+                    return D("button",{key:g.id,type:"button",style:{padding:"3px 10px",borderRadius:14,border:"2px solid "+(sel?g.color:g.color+"44"),background:sel?g.color:g.color+"14",color:sel?"#fff":g.color,fontFamily:"Lato,sans-serif",fontSize:12,fontWeight:700,cursor:"pointer"},
+                      onClick:function(){sf({gradeIds:sel?(form.gradeIds||[]).filter(function(id){return id!==g.id;}):(form.gradeIds||[]).concat([g.id])});}},g.short);
+                  })
+                ),
+                D("div",{style:{fontSize:11,color:"#b0906a",marginTop:3}},"Select all that apply")
+              ),
+              ce(LinkManager,{key:"links",links:form.links||[],onChange:function(links){sf({links:links});}})
+            ]
         ),
         D("div",{style:{display:"flex",gap:10,justifyContent:"flex-end",marginTop:20}},
           D("button",{className:"btn bg",onClick:function(){setModal(null);}},"Cancel"),
@@ -506,7 +535,7 @@ function App(){
 }
 
 function EntryCard(props){
-  const entry=props.entry,school=props.school,topic=props.topic,grades=props.grades,onEdit=props.onEdit,onDelete=props.onDelete,onToggle=props.onToggle;
+  const entry=props.entry,school=props.school,topic=props.topic,grades=props.grades,linkedProject=props.linkedProject,onEdit=props.onEdit,onDelete=props.onDelete,onToggle=props.onToggle;
   const[exp,setExp]=useState(false);
   const isTask=entry.type==="task";
   const d=days(entry.dueDate);
@@ -530,7 +559,8 @@ function EntryCard(props){
         ),
         school&&D("div",{style:{fontSize:11,color:"#b0906a",marginBottom:5,display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}},
           D("span",{style:{background:school.color+"1a",color:school.color,borderRadius:8,padding:"1px 7px",fontWeight:700}},school.name),
-          ...(grades||[]).map(function(g){return D("span",{key:g.id,style:{background:g.color+"18",color:g.color,borderRadius:8,padding:"1px 7px",fontWeight:700,fontSize:10,border:"1px solid "+g.color+"44"}},"🎓 "+g.label);})
+          ...(grades||[]).map(function(g){return D("span",{key:g.id,style:{background:g.color+"18",color:g.color,borderRadius:8,padding:"1px 7px",fontWeight:700,fontSize:10,border:"1px solid "+g.color+"44"}},"🎓 "+g.label);}),
+          linkedProject&&D("span",{style:{background:"#e8a83818",color:"#c47d1a",borderRadius:8,padding:"1px 7px",fontWeight:700,fontSize:10,border:"1px solid #e8a83844"}},"📋 "+linkedProject.title)
         ),
         entry.notes&&D("div",null,
           D("div",{style:{fontSize:12,color:"#6b5040",lineHeight:1.55,whiteSpace:"pre-wrap",maxHeight:exp?"none":"54px",overflow:"hidden"}},entry.notes),
